@@ -1,0 +1,20 @@
+
+services:
+
+  nifi:
+    image: apache/nifi:1.11.4
+    container_name: nifi
+    ports:
+      - "9090:9090"
+    environment:
+      - NIFI_WEB_HTTP_PORT=9090
+      - NIFI_CLUSTER_IS_NODE=false
+   # volumes:
+   #   - ${DATADIR}/nifi_data:/home/nifi/data
+    networks:
+      - nova-ej001
+
+networks:
+  nova-ej001:
+    external:
+      name: nova-ej001
