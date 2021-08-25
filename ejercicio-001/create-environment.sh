@@ -5,7 +5,7 @@ DOCKER_FILE=docker-compose.yml
 
 
 #### ---- Create docker network ----
-DOCKER_NETWORK=nova-ej001
+DOCKER_NETWORK=nova-basic
 docker network create -d bridge ${DOCKER_NETWORK}
 
 

@@ -2,4 +2,4 @@
 
 docker-compose rm --stop --force nifi
 
-docker network rm nova-ej001
+docker network rm nova-basic
