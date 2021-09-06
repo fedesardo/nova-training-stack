@@ -1,0 +1,135 @@
+services:
+
+#################### NIFI ######################
+  nifi:
+    image: apache/nifi:1.11.4
+    container_name: nifi
+    ports:
+      - "9090:9090" # Unsecured HTTP Web Port
+    environment:
+      - NIFI_WEB_HTTP_PORT=9090
+      - NIFI_CLUSTER_NODE_PROTOCOL_PORT=8082
+    volumes:
+        - ${DATADIR}/nifi_data:/home/nifi/data
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.60
+
+#################### HDFS ######################
+  namenode:
+    image: johannestang/hadoop-namenode:2.0.0-hadoop2.8.5-java8
+    container_name: namenode #f
+    restart: always
+    volumes:
+      - ${DATADIR}/hadoop/namenode:/hadoop/dfs/name
+    environment:
+      - CLUSTER_NAME=NovaCluster
+    env_file:
+      - ./config/hadoop-hive.env
+    ports:
+      - "50070:50070"
+    healthcheck:  #f
+      interval: 5s   #f
+      retries: 100 #f
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.10
+
+  datanode:
+    image: johannestang/hadoop-datanode:2.0.0-hadoop2.8.5-java8
+    container_name: datanode
+    restart: always
+    volumes:
+      - ${DATADIR}/hadoop/datanode:/hadoop/dfs/data
+    env_file:
+      - ./config/hadoop-hive.env
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070"
+    depends_on:
+      - namenode
+    ports:
+      - "50075:50075"
+    healthcheck:
+      interval: 5s
+      retries: 100
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.11
+
+
+#################### HIVE ######################
+  hive-server:
+    image: johannestang/hive:2.3.6-postgresql-metastore-s3
+    container_name: hive-server
+    restart: always
+    env_file:
+      - ./config/hadoop-hive.env
+    environment:
+      HIVE_CORE_CONF_javax_jdo_option_ConnectionURL: "jdbc:postgresql://hive-metastore/metastore"
+      SERVICE_PRECONDITION: "hive-metastore:9083"
+    ports:
+      - "10000:10000"
+      - "10002:10002"
+    depends_on:
+      - hive-metastore
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.30
+
+  hive-metastore:
+    image: johannestang/hive:2.3.6-postgresql-metastore-s3
+    container_name: hive-metastore
+    restart: always
+    env_file:
+      - ./config/hadoop-hive.env
+    command: /opt/hive/bin/hive --service metastore
+    environment:
+      SERVICE_PRECONDITION: "namenode:50070 datanode:50075 hive-metastore-postgresql:5432"
+    ports:
+      - "9083:9083"
+    depends_on:
+      - hive-metastore-postgresql 
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.31
+  
+  hive-metastore-postgresql:
+    image: bde2020/hive-metastore-postgresql:2.3.0
+    container_name: hive-metastore-postgresql
+    volumes:
+      - ${DATADIR}/hive-metastore:/var/lib/postgresql/data
+    depends_on:
+      - datanode
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.32
+
+
+#################### HUE #######################
+  hue:
+    image: johannestang/hue:4.5.0-presto326
+    container_name: hue
+    restart: always
+    depends_on:
+      - hue-postgres
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./config/hue.ini:/usr/share/hue/desktop/conf/z-hue.ini
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.80
+
+  hue-postgres:
+    image: postgres:10
+    container_name: hue-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${HUE_POSTGRES_DB}
+      POSTGRES_PASSWORD: ${HUE_POSTGRES_PASSWORD}
+      POSTGRES_USER: ${HUE_POSTGRES_USER}
+    volumes:
+      - ${DATADIR}/hue/postgres:/var/lib/postgresql/data
+    networks:
+      nova_net:
+        ipv4_address: 172.27.1.81
